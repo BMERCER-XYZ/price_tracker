@@ -2,8 +2,8 @@ name: 📊 Run Price Tracker Bot
 
 on:
   schedule:
-    - cron: '0 18 * * *'  # Runs daily at 3:30 AM ACST (adjust as needed)
-  workflow_dispatch:      # Allows manual trigger
+    - cron: '0 18 * * *'  # Daily at 3:30 AM ACST (UTC+9:30)
+  workflow_dispatch:      # Manual trigger
 
 jobs:
   run-bot:
@@ -25,7 +25,7 @@ jobs:
 
       - name: ▶️ Run script
         env:
-          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}
         run: python script.py
 
       - name: 🔄 Commit updated data.json if changed
@@ -38,4 +38,3 @@ jobs:
           else
             git commit -m "📈 Update data.json after price check"
             git push
-
