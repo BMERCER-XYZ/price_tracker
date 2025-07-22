@@ -1,4 +1,4 @@
 Ben,Charizard EX,509980
 Hayden,Pikachu VMAX,124116
-Bailey,Snorlax,500000
+Bailey,Leafeon VSTAR,477060
 Ben,Mewtwo GX,502401
