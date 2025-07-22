@@ -1,10 +1,4 @@
-# Ben
-https://www.tcgplayer.com/product/509980?Language=English
-
-# Hayden
-https://www.tcgplayer.com/product/108614/pokemon-xy-promos-pikachu-ex-xy84?Language=English
-...
-
-# Bailey
-https://www.tcgplayer.com/product/477060/pokemon-crown-zenith-galarian-gallery-leafeon-vstar?page=1&Language=English
-...
+Ben,Charizard EX,509980
+Friend1,Pikachu VMAX,124116
+Friend2,Snorlax,500000
+Ben,Mewtwo GX,502401
