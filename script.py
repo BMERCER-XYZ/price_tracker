@@ -1,12 +1,19 @@
 import requests
 import json
 import os
+from datetime import datetime
+import pytz  # Required for timezone handling
 
 DATA_FILE = "data.json"
 URLS_FILE = "urls.txt"
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 
-# Parse user-card assignments
+# Set timezone to Adelaide (ACST/ACDT)
+tz_adelaide = pytz.timezone("Australia/Adelaide")
+now = datetime.now(tz_adelaide)
+formatted_time = now.strftime("%A, %d %B %Y at %-I:%M %p %Z")  # e.g., Monday, 22 July 2025 at 3:30 AM ACST
+
+# Parse user-card assignments from urls.txt
 user_cards = {}
 card_names = {}
 
@@ -22,7 +29,7 @@ with open(URLS_FILE, "r") as f:
             except ValueError:
                 print(f"⚠️ Skipping malformed line: {line.strip()}")
 
-# Load previous data
+# Load previous price data
 if os.path.exists(DATA_FILE):
     with open(DATA_FILE, "r") as f:
         old_data = json.load(f)
@@ -49,6 +56,7 @@ def get_price(product_id):
         print(f"❌ Failed to get price for {product_id}: {e}")
         return None
 
+# Generate report for each user
 for user, ids in user_cards.items():
     message_lines.append(f"### 📦 {user}'s Cards")
     for pid in ids:
@@ -67,11 +75,14 @@ for user, ids in user_cards.items():
             message_lines.append(f"- {symbol} **{name}**: ${old_price:.2f} → ${price:.2f} ({change:+.2f})")
         else:
             message_lines.append(f"- ⏸️ **{name}**: ${price:.2f} (no change)")
-    message_lines.append("")  # Add empty line between users
+    message_lines.append("")  # Spacer between users
 
 # Save updated prices
 with open(DATA_FILE, "w") as f:
     json.dump(new_data, f, indent=2)
+
+# Add timestamp to the end of the message
+message_lines.append(f"_Last run: {formatted_time}_")
 
 # Send Discord webhook
 if DISCORD_WEBHOOK_URL:

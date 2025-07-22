@@ -1,4 +1,4 @@
 Ben,Charizard EX,509980
-Friend1,Pikachu VMAX,124116
-Friend2,Snorlax,500000
+Hayden,Pikachu VMAX,124116
+Bailey,Snorlax,500000
 Ben,Mewtwo GX,502401
