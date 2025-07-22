@@ -1,0 +1,31 @@
+name: Pokémon Price Tracker Bot
+
+on:
+  schedule:
+    # Runs every day at 3:00 AM AEST/ACDT (adjust if needed)
+    - cron: '30 16 * * *'  # GitHub uses UTC; this is 3:00 AM Adelaide time (+09:30)
+  workflow_dispatch:  # Allows manual triggering from GitHub Actions UI
+
+jobs:
+  run-tracker:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 🧾 Checkout repository
+      uses: actions/checkout@v3
+
+    - name: 🐍 Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: 📦 Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: 🚀 Run script
+      env:
+        DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      run: |
+        python script.py
