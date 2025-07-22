@@ -25,7 +25,7 @@ jobs:
 
       - name: ▶️ Run script
         env:
-          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: python script.py
 
       - name: 🔄 Commit updated data.json if changed
