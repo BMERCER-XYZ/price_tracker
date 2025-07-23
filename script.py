@@ -85,11 +85,17 @@ def get_price(product_id):
 
 # === Generate report ===
 for user, ids in user_cards.items():
+    # Sort product IDs by current market price (descending), fallback to 0 if no price
+    sorted_ids = sorted(
+        ids,
+        key=lambda pid: new_data.get(pid) if new_data.get(pid) is not None else 0,
+        reverse=True
+    )
+
     message_lines.append(f"### :point_down: {user}'s Cards")
-    for pid in ids:
+    for pid in sorted_ids:
         name = card_names.get(pid, f"Card {pid}")
-        price = get_price(pid)
-        new_data[pid] = price
+        price = new_data.get(pid)
         old_price = old_data.get(pid)
 
         if price is None:
@@ -103,6 +109,7 @@ for user, ids in user_cards.items():
         else:
             message_lines.append(f"- ⏸️ **{name}**: ${price:.2f} (no change)")
     message_lines.append("")
+
 
 # === Save updated data ===
 with open(DATA_FILE, "w") as f:
