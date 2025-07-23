@@ -116,7 +116,6 @@ for user, ids in user_cards.items():
     message_lines.append("")
 
 
-
 # === Save updated data ===
 with open(DATA_FILE, "w") as f:
     json.dump(new_data, f, indent=2)
