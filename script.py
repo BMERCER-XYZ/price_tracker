@@ -15,12 +15,35 @@ tz_adelaide = pytz.timezone("Australia/Adelaide")
 now = datetime.now(tz_adelaide)
 formatted_time = now.strftime("%A, %d %B %Y at %-I:%M %p %Z")
 
-# === Load last run time from file (if it exists) ===
+# Read the last successful run time
 if os.path.exists(LAST_RUN_FILE):
     with open(LAST_RUN_FILE, "r") as f:
-        last_run_display = f.read().strip()
+        last_run_str = f.read().strip()
+    try:
+        # Parse the saved last run time into a datetime object
+        last_run_dt = datetime.strptime(last_run_str, "%A, %d %B %Y at %I:%M %p %Z")
+        last_run_dt = tz_adelaide.localize(last_run_dt.replace(tzinfo=None))  # Ensure timezone is correct
+
+        # Calculate time since last run
+        delta = now - last_run_dt
+        hours, remainder = divmod(int(delta.total_seconds()), 3600)
+        minutes = remainder // 60
+
+        # Create a friendly duration string
+        if hours >= 1:
+            ago_str = f"{hours} hour{'s' if hours != 1 else ''} ago"
+            if minutes:
+                ago_str += f", {minutes} minute{'s' if minutes != 1 else ''}"
+        else:
+            ago_str = f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+
+        last_run_time_str = f"{last_run_str} ({ago_str})"
+
+    except Exception as e:
+        print(f"⚠️ Error parsing last run time: {e}")
+        last_run_time_str = last_run_str  # Fall back to raw string
 else:
-    last_run_display = "Unknown"
+    last_run_time_str = "Unknown"
 
 # === Read URLs file and organize data by user ===
 # Expected format per line: UserName,Card Name,ProductID
@@ -99,7 +122,7 @@ with open(LAST_RUN_FILE, "w") as f:
     f.write(formatted_time)
 
 # === Add timestamp info to end of report ===
-message_lines.append(f"_Last successful run: {last_run_display}_")
+message_lines.append(f"_Last successful run: {last_run_time_str}_")
 
 # === Send report via Discord Webhook ===
 if DISCORD_WEBHOOK_URL:
