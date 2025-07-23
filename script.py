@@ -13,23 +13,21 @@ DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 # === Get current time in Adelaide timezone ===
 tz_adelaide = pytz.timezone("Australia/Adelaide")
 now = datetime.now(tz_adelaide)
-formatted_time = now.strftime("%A, %d %B %Y at %-I:%M %p %Z")
+formatted_time = now.strftime("%A, %d %B %Y at %-I:%M %p")  # No timezone suffix here
 
 # === Read the last successful run time ===
 if os.path.exists(LAST_RUN_FILE):
     with open(LAST_RUN_FILE, "r") as f:
         last_run_str = f.read().strip()
     try:
-        # Parse stored time string into datetime
-        last_run_dt_naive = datetime.strptime(last_run_str, "%A, %d %B %Y at %I:%M %p %Z")
-        last_run_dt = tz_adelaide.localize(last_run_dt_naive.replace(tzinfo=None))
+        # Parse stored time string and re-localize to Adelaide
+        last_run_dt = tz_adelaide.localize(datetime.strptime(last_run_str, "%A, %d %B %Y at %I:%M %p"))
         
         # Time since last run
         delta = now - last_run_dt
         hours, remainder = divmod(int(delta.total_seconds()), 3600)
         minutes = remainder // 60
 
-        # Build time-since string
         if hours >= 1:
             ago_str = f"{hours} hour{'s' if hours != 1 else ''}"
             if minutes:
@@ -44,6 +42,7 @@ if os.path.exists(LAST_RUN_FILE):
         last_run_time_str = last_run_str
 else:
     last_run_time_str = "Unknown"
+
 
 # === Read product IDs from urls.txt ===
 # Format: UserName,Card Name,ProductID
