@@ -13,7 +13,7 @@ DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 # === Get current time in Adelaide timezone ===
 tz_adelaide = pytz.timezone("Australia/Adelaide")
 now = datetime.now(tz_adelaide)
-formatted_time = now.strftime("%A, %d %B %Y at %-I:%M %p")  # No timezone suffix here
+formatted_time = now.strftime("%d %B @ %I:%M %p")  # No timezone suffix here
 
 # === Read the last successful run time ===
 if os.path.exists(LAST_RUN_FILE):
@@ -21,7 +21,7 @@ if os.path.exists(LAST_RUN_FILE):
         last_run_str = f.read().strip()
     try:
         # Parse stored time string and re-localize to Adelaide
-        last_run_dt = tz_adelaide.localize(datetime.strptime(last_run_str, "%A, %d %B %Y at %I:%M %p"))
+        last_run_dt = tz_adelaide.localize(datetime.strptime(last_run_str, "%d %B @ %I:%M %p"))
         
         # Time since last run
         delta = now - last_run_dt
