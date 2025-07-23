@@ -15,19 +15,27 @@ tz_adelaide = pytz.timezone("Australia/Adelaide")
 now = datetime.now(tz_adelaide)
 formatted_time = now.strftime("%d %B @ %I:%M %p")  # No timezone suffix here
 
-# === Read the last successful run time ===
+# === Get current time in Adelaide timezone ===
+tz_adelaide = pytz.timezone("Australia/Adelaide")
+now = datetime.now(tz_adelaide)
+
+# Format for saving and displaying last run time (no timezone suffix)
+formatted_time = now.strftime("%d %B @ %I:%M %p")  # e.g., "23 July @ 07:40 PM"
+
+# === Read last successful run time ===
 if os.path.exists(LAST_RUN_FILE):
     with open(LAST_RUN_FILE, "r") as f:
         last_run_str = f.read().strip()
     try:
-        # Parse stored time string and re-localize to Adelaide
+        # Parse last run time string (no timezone)
         last_run_dt = tz_adelaide.localize(datetime.strptime(last_run_str, "%d %B @ %I:%M %p"))
         
-        # Time since last run
+        # Calculate time since last run
         delta = now - last_run_dt
         hours, remainder = divmod(int(delta.total_seconds()), 3600)
         minutes = remainder // 60
 
+        # Format how long ago string
         if hours >= 1:
             ago_str = f"{hours} hour{'s' if hours != 1 else ''}"
             if minutes:
@@ -35,6 +43,7 @@ if os.path.exists(LAST_RUN_FILE):
         else:
             ago_str = f"{minutes} minute{'s' if minutes != 1 else ''}"
 
+        # Combine for display
         last_run_time_str = f"{last_run_str} ({ago_str} ago)"
 
     except Exception as e:
