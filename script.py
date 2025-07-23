@@ -104,15 +104,15 @@ for user, ids in user_cards.items():
         old_price = old_data.get(pid)
 
         if price is None:
-            message_lines.append(f"> ❌ **{name}** (`{pid}`): No price found.")
+            message_lines.append(f"\> ❌ **{name}** (`{pid}`): No price found.")
         elif old_price is None:
-            message_lines.append(f"> 🆕 **{name}**: ${price:.2f} (new)")
+            message_lines.append(f"\> 🆕 **{name}**: ${price:.2f} (new)")
         elif price != old_price:
             change = price - old_price
             symbol = ":chart_with_upwards_trend:" if change > 0 else ":chart_with_downwards_trend:"
-            message_lines.append(f"> {symbol} **{name}**: ${old_price:.2f} → ${price:.2f} ({change:+.2f})")
+            message_lines.append(f"\> {symbol} **{name}**: ${old_price:.2f} → ${price:.2f} ({change:+.2f})")
         else:
-            message_lines.append(f"> **{name}**: ${price:.2f} (no change)")
+            message_lines.append(f"\> **{name}**: ${price:.2f} (no change)")
     message_lines.append("")
 
 
