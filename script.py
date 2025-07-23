@@ -83,9 +83,14 @@ def get_price(product_id):
         print(f"❌ Failed to get price for {product_id}: {e}")
         return None
 
+# === Fetch prices and build new_data ===
+for user, ids in user_cards.items():
+    for pid in ids:
+        if pid not in new_data:
+            new_data[pid] = get_price(pid)
+
 # === Generate report ===
 for user, ids in user_cards.items():
-    # Sort product IDs by current market price (descending), fallback to 0 if no price
     sorted_ids = sorted(
         ids,
         key=lambda pid: new_data.get(pid) if new_data.get(pid) is not None else 0,
@@ -109,6 +114,7 @@ for user, ids in user_cards.items():
         else:
             message_lines.append(f"- ⏸️ **{name}**: ${price:.2f} (no change)")
     message_lines.append("")
+
 
 
 # === Save updated data ===
