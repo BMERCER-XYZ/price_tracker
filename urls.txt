@@ -1,4 +1,9 @@
-Ben,Charizard EX,509980
-Hayden,Pikachu VMAX,124116
-Bailey,Leafeon VSTAR,477060
+Ben,Charizard EX 223/197,509980
 Ben,Mewtwo GX,502401
+Ben,Fat Pikachu 044/185,226432
+Ben,Charizard VMAX 020/189,219233
+Ben, Espeon EX 155/131,610510
+
+Hayden,Charizard EX 234/091,535090
+
+Bailey,Leafeon VSTAR GG35/GG70,477060
