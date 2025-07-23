@@ -28,14 +28,14 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: python script.py
 
-      - name: 🔄 Commit updated data.json if changed
+      - name: Commit updated data and last run time
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data.json
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add data.json last_run.txt
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
-            git commit -m "📈 Update data.json after price check"
+            git commit -m "Update tracked prices and last run time"
             git push
           fi
