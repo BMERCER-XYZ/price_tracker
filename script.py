@@ -117,7 +117,7 @@ with open(LAST_RUN_FILE, "w") as f:
     f.write(formatted_time)
 
 # === Add footer ===
-message_lines.append(f"_Last successful run: {last_run_time_str}_")
+message_lines.append(f"`Last run: {last_run_time_str}`")
 
 # === Send to Discord ===
 if DISCORD_WEBHOOK_URL:
