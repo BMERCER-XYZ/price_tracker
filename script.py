@@ -127,16 +127,43 @@ with open(LAST_RUN_FILE, "w") as f:
 # === Add footer ===
 message_lines.append(f"`Last run: {last_run_time_str}`")
 
-# === Send to Discord ===
-if DISCORD_WEBHOOK_URL:
-    payload = {
-        "content": f"🧾 **Pokémon Card Price Tracker Report**\n" + "\n".join(message_lines)
-    }
-    try:
-        response = requests.post(DISCORD_WEBHOOK_URL, json=payload)
-        response.raise_for_status()
-        print("✅ Webhook sent successfully.")
-    except Exception as e:
-        print(f"❌ Webhook error: {e}")
-else:
-    print("❌ Webhook URL not found in environment variables.")
+embed = {
+    "title": "🧾 Pokémon Card Price Tracker Report",
+    "color": 0x00ffcc,  # Teal
+    "fields": [],
+    "footer": {"text": f"Last run: {last_run_time_str}"}
+}
+
+for user, ids in user_cards.items():
+    sorted_ids = sorted(ids, key=lambda pid: new_data.get(pid) or 0, reverse=True)
+
+    field_lines = []
+    for pid in sorted_ids:
+        name = card_names.get(pid, f"Card {pid}")
+        price = new_data.get(pid)
+        old_price = old_data.get(pid)
+
+        if price is None:
+            line = f"❌ **{name}** (`{pid}`): No price found."
+        elif old_price is None:
+            line = f"🆕 **{name}**: ${price:.2f} (new)"
+        elif price != old_price:
+            change = price - old_price
+            symbol = "📈" if change > 0 else "📉"
+            line = f"{symbol} **{name}**: ${old_price:.2f} → ${price:.2f} ({change:+.2f})"
+        else:
+            line = f"⏸️ **{name}**: ${price:.2f} (no change)"
+        field_lines.append(line)
+
+    embed["fields"].append({
+        "name": f"{user}'s Cards",
+        "value": "\n".join(field_lines) or "No cards found.",
+        "inline": False
+    })
+
+# === Send Embed to Discord ===
+payload = {
+    "embeds": [embed]
+}
+response = requests.post(DISCORD_WEBHOOK_URL, json=payload)
+
