@@ -1,8 +1,13 @@
 Ben,Charizard EX 223/197,509980
-Ben,Mewtwo GX,502401
+Ben,Mewtwo Promo 052,518872
 Ben,Fat Pikachu 044/185,226432
 Ben,Charizard VMAX 020/189,219233
-Ben, Espeon EX 155/131,610510
+Ben,Espeon EX 155/131,610510
+Ben,Minun 194/182,523875
+Ben,Deoxys VMAX GG45/GG70,477354
+Ben,M Venusaur EX 100/108,124113
+Ben, Mewtwo EX 103/108,124116
+Ben,M Houndoom EX 154/162,107273
 
 Hayden,Charizard EX 234/091,535090
 
