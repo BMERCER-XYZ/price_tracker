@@ -10,32 +10,20 @@ URLS_FILE = "urls.txt"
 LAST_RUN_FILE = "last_run.txt"
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 
-# === Get current time in Adelaide timezone ===
-tz_adelaide = pytz.timezone("Australia/Adelaide")
-now = datetime.now(tz_adelaide)
-formatted_time = now.strftime("%d %B @ %I:%M %p")  # No timezone suffix here
-
-# === Get current time in Adelaide timezone ===
+# === Timezone ===
 tz_adelaide = pytz.timezone("Australia/Adelaide")
 now = datetime.now(tz_adelaide)
 
-# Format for saving and displaying last run time (no timezone suffix)
-formatted_time = now.strftime("%d %B @ %I:%M %p")  # e.g., "23 July @ 07:40 PM"
-
-# === Read last successful run time ===
+# === Read the last successful run time ===
 if os.path.exists(LAST_RUN_FILE):
     with open(LAST_RUN_FILE, "r") as f:
-        last_run_str = f.read().strip()
+        last_run_raw = f.read().strip()
     try:
-        # Parse last run time string (no timezone)
-        last_run_dt = tz_adelaide.localize(datetime.strptime(last_run_str, "%d %B @ %I:%M %p"))
-        
-        # Calculate time since last run
+        last_run_dt = datetime.fromisoformat(last_run_raw).astimezone(tz_adelaide)
         delta = now - last_run_dt
         hours, remainder = divmod(int(delta.total_seconds()), 3600)
         minutes = remainder // 60
 
-        # Format how long ago string
         if hours >= 1:
             ago_str = f"{hours} hour{'s' if hours != 1 else ''}"
             if minutes:
@@ -43,15 +31,14 @@ if os.path.exists(LAST_RUN_FILE):
         else:
             ago_str = f"{minutes} minute{'s' if minutes != 1 else ''}"
 
-        # Combine for display
-        last_run_time_str = f"{last_run_str} ({ago_str} ago)"
+        formatted_last_run = last_run_dt.strftime("%d %B @ %I:%M %p")
+        last_run_time_str = f"{formatted_last_run} ({ago_str} ago)"
 
     except Exception as e:
         print(f"⚠️ Error parsing last run time: {e}")
-        last_run_time_str = last_run_str
+        last_run_time_str = "Unknown"
 else:
     last_run_time_str = "Unknown"
-
 
 # === Read product IDs from urls.txt ===
 # Format: UserName,Card Name,ProductID
@@ -121,9 +108,9 @@ for user, ids in user_cards.items():
 with open(DATA_FILE, "w") as f:
     json.dump(new_data, f, indent=2)
 
-# === Save current run time ===
+# === Save current run time in ISO format ===
 with open(LAST_RUN_FILE, "w") as f:
-    f.write(formatted_time)
+    f.write(now.isoformat())
 
 # === Add footer ===
 message_lines.append(f"`Last run: {last_run_time_str}`")
