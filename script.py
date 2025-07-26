@@ -99,14 +99,25 @@ with open(LAST_RUN_FILE, "w") as f:
     f.write(now.isoformat())
 
 # === Send an individual embed per user ===
-for user, ids in user_cards.items():
+# === Build embeds per user ===
+embeds = []
+
+for idx, (user, ids) in enumerate(user_cards.items()):
     sorted_ids = sorted(ids, key=lambda pid: new_data.get(pid) or 0, reverse=True)
 
     field_lines = []
+    total_value = 0.0
+    old_total_value = 0.0
+
     for pid in sorted_ids:
         name = card_names.get(pid, f"Card {pid}")
         price = new_data.get(pid)
         old_price = old_data.get(pid)
+
+        if price is not None:
+            total_value += price
+        if old_price is not None:
+            old_total_value += old_price
 
         if price is None:
             line = f"❌ **{name}** (`{pid}`): No price found."
@@ -120,18 +131,41 @@ for user, ids in user_cards.items():
             line = f"⏸️ **{name}**: ${price:.2f} (no change)"
         field_lines.append(line)
 
+    month_change = total_value - old_total_value if old_total_value else 0.0
+    change_symbol = "📈" if month_change > 0 else "📉" if month_change < 0 else "⏸️"
+
     embed = {
-        "title": f"📊 {user}'s Pokémon Price Report",
+        "title": f"{user}'s Card Summary",
         "color": 0x00ffcc,
-        "description": "\n".join(field_lines) or "No cards found.",
-        "footer": {"text": f"Last run: {last_run_time_str}"}
+        "fields": [
+            {
+                "name": "Total Value",
+                "value": f"${total_value:.2f}",
+                "inline": True
+            },
+            {
+                "name": "Month-to-Date Change",
+                "value": f"{change_symbol} {month_change:+.2f}",
+                "inline": True
+            },
+            {
+                "name": "Card Details",
+                "value": "\n".join(field_lines) or "No cards found.",
+                "inline": False
+            }
+        ]
     }
 
-    payload = {
-        "content": f"📅 Report for **{user}** generated on {now.strftime('%d %B %Y at %I:%M %p')}",
-        "embeds": [embed]
-    }
+    # Only add the footer to the last embed
+    if idx == len(user_cards) - 1:
+        embed["footer"] = {"text": f"Last run: {last_run_time_str}"}
 
-    response = requests.post(DISCORD_WEBHOOK_URL, json=payload)
-    if not response.ok:
-        print(f"❌ Failed to send embed for {user}: {response.status_code} - {response.text}")
+    embeds.append(embed)
+
+# === Send to Discord ===
+payload = {
+    "content": "🧾 **Pokémon Card Price Tracker Report**",
+    "embeds": embeds
+}
+
+response = requests.post(DISCORD_WEBHOOK_URL, json=payload)
