@@ -1,7 +1,7 @@
 import requests
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 
 # === Constants ===
@@ -13,6 +13,7 @@ DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 # === Timezone ===
 tz_adelaide = pytz.timezone("Australia/Adelaide")
 now = datetime.now(tz_adelaide)
+today_str = now.strftime("%Y-%m-%d")
 
 # === Read the last successful run time ===
 if os.path.exists(LAST_RUN_FILE):
@@ -23,17 +24,9 @@ if os.path.exists(LAST_RUN_FILE):
         delta = now - last_run_dt
         hours, remainder = divmod(int(delta.total_seconds()), 3600)
         minutes = remainder // 60
-
-        if hours >= 1:
-            ago_str = f"{hours} hour{'s' if hours != 1 else ''}"
-            if minutes:
-                ago_str += f", {minutes} minute{'s' if minutes != 1 else ''}"
-        else:
-            ago_str = f"{minutes} minute{'s' if minutes != 1 else ''}"
-
+        ago_str = f"{hours} hour{'s' if hours != 1 else ''}" if hours else f"{minutes} minute{'s' if minutes != 1 else ''}"
         formatted_last_run = last_run_dt.strftime("%d %B @ %I:%M %p")
         last_run_time_str = f"{formatted_last_run} ({ago_str} ago)"
-
     except Exception as e:
         print(f"⚠️ Error parsing last run time: {e}")
         last_run_time_str = "Unknown"
@@ -41,7 +34,6 @@ else:
     last_run_time_str = "Unknown"
 
 # === Read product IDs from urls.txt ===
-# Format: UserName,Card Name,ProductID
 user_cards = {}
 card_names = {}
 
@@ -63,7 +55,6 @@ else:
     old_data = {}
 
 new_data = {}
-message_lines = []
 
 # === Fetch price from TCGPlayer API ===
 def get_price(product_id):
@@ -72,7 +63,6 @@ def get_price(product_id):
         response = requests.get(url, timeout=10)
         response.raise_for_status()
         prices = response.json()
-
         for entry in prices:
             if entry.get("printingType") == "Foil" and entry.get("marketPrice"):
                 return entry["marketPrice"]
@@ -83,56 +73,79 @@ def get_price(product_id):
         print(f"❌ Failed to get price for {product_id}: {e}")
         return None
 
-# === Fetch prices and build new_data ===
+# === Update price history ===
+def update_price_history(pid, market_price):
+    history = old_data.get(pid, {}).get("history", [])
+    if not any(entry["date"] == today_str for entry in history):
+        history.append({"date": today_str, "market": market_price})
+    return history
+
+# === Calculate change from a specific period ===
+def calculate_performance(history, target_date):
+    baseline = None
+    for entry in reversed(history):
+        entry_date = datetime.strptime(entry["date"], "%Y-%m-%d").date()
+        if entry_date <= target_date:
+            baseline = entry["market"]
+            break
+    latest = history[-1]["market"] if history else None
+    return round(latest - baseline, 2) if baseline is not None and latest is not None else None
+
+# === Fetch and update ===
 for user, ids in user_cards.items():
     for pid in ids:
-        if pid not in new_data:
-            new_data[pid] = get_price(pid)
+        price = get_price(pid)
+        if price is not None:
+            new_data.setdefault(pid, {})["price"] = price
+            new_data[pid]["history"] = update_price_history(pid, price)
 
-# === Generate report ===
 # === Save updated data ===
 with open(DATA_FILE, "w") as f:
     json.dump(new_data, f, indent=2)
 
-# === Save current run time in ISO format ===
+# === Save current run time ===
 with open(LAST_RUN_FILE, "w") as f:
     f.write(now.isoformat())
 
-# === Send an individual embed per user ===
-# === Build embeds per user ===
+# === Build Discord Embeds ===
 embeds = []
 
 for idx, (user, ids) in enumerate(user_cards.items()):
-    sorted_ids = sorted(ids, key=lambda pid: new_data.get(pid) or 0, reverse=True)
+    sorted_ids = sorted(ids, key=lambda pid: new_data.get(pid, {}).get("price") or 0, reverse=True)
 
     field_lines = []
     total_value = 0.0
-    old_total_value = 0.0
 
     for pid in sorted_ids:
         name = card_names.get(pid, f"Card {pid}")
-        price = new_data.get(pid)
-        old_price = old_data.get(pid)
+        price = new_data.get(pid, {}).get("price")
+        history = new_data.get(pid, {}).get("history", [])
 
+        line = f"❌ **{name}** (`{pid}`): No price found."
         if price is not None:
             total_value += price
-        if old_price is not None:
-            old_total_value += old_price
 
-        if price is None:
-            line = f"❌ **{name}** (`{pid}`): No price found."
-        elif old_price is None:
-            line = f"🆕 **{name}**: ${price:.2f} (new)"
-        elif price != old_price:
-            change = price - old_price
-            symbol = "📈" if change > 0 else "📉"
-            line = f"{symbol} **{name}**: ${old_price:.2f} → ${price:.2f} ({change:+.2f})"
-        else:
-            line = f"⏸️ **{name}**: ${price:.2f} (no change)"
+            # Calculate performance
+            today = now.date()
+            start_of_week = today - timedelta(days=today.weekday())
+            start_of_month = today.replace(day=1)
+            start_of_year = today.replace(month=1, day=1)
+
+            wtd = calculate_performance(history, start_of_week)
+            mtd = calculate_performance(history, start_of_month)
+            ytd = calculate_performance(history, start_of_year)
+            all_time = calculate_performance(history, datetime.strptime(history[0]["date"], "%Y-%m-%d").date()) if history else None
+
+            parts = [f"${price:.2f}"]
+            if any(v is not None for v in (wtd, mtd, ytd, all_time)):
+                parts.append(f"WTD {wtd:+.2f}" if wtd is not None else "WTD N/A")
+                parts.append(f"MTD {mtd:+.2f}" if mtd is not None else "MTD N/A")
+                parts.append(f"YTD {ytd:+.2f}" if ytd is not None else "YTD N/A")
+                parts.append(f"ALL {all_time:+.2f}" if all_time is not None else "ALL N/A")
+
+            line = f"📊 **{name}**: {' | '.join(parts)}"
+
         field_lines.append(line)
-
-    month_change = total_value - old_total_value if old_total_value else 0.0
-    change_symbol = "📈" if month_change > 0 else "📉" if month_change < 0 else "⏸️"
 
     embed = {
         "title": f"{user}'s Card Summary",
@@ -144,11 +157,6 @@ for idx, (user, ids) in enumerate(user_cards.items()):
                 "inline": True
             },
             {
-                "name": "Month-to-Date Change",
-                "value": f"{change_symbol} {month_change:+.2f}",
-                "inline": True
-            },
-            {
                 "name": "Card Details",
                 "value": "\n".join(field_lines) or "No cards found.",
                 "inline": False
@@ -156,7 +164,6 @@ for idx, (user, ids) in enumerate(user_cards.items()):
         ]
     }
 
-    # Only add the footer to the last embed
     if idx == len(user_cards) - 1:
         embed["footer"] = {"text": f"Last run: {last_run_time_str}"}
 
