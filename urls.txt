@@ -12,7 +12,13 @@ Ben,M Houndoom EX 154/162,107273
 Hayden,Charizard EX 234/091,535090
 Hayden,Charizard V Sword & Shield Promo,285384
 Hayden,Charizard VMAX Promo,285378
+Hayden,Charizard VSTAR Promo,285396
 Hayden,Leafeon VSTAR GG35/GG70,477060
+Hayden,Mew EX Promo,518871
+Hayden,Greninja EX Metal 106/167,616824
+Hayden,Iono Full art Trainer 237/091,535101
+Hayden,Mewtwo Promo 052,518872
+Hayden,Deerling 165/162,542886
 
 Bailey,Leafeon VSTAR GG35/GG70,477060
 Bailey,Iron Valiant ex - 249/182,523930
