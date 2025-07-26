@@ -144,9 +144,6 @@ for idx, (user, ids) in enumerate(user_cards.items()):
     start_of_month = today.replace(day=1)
     start_of_year = today.replace(month=1, day=1)
 
-    # To get baseline for totals, we combine history of all cards by date, so:
-    # We'll approximate by summing baseline prices on those dates from old_data histories.
-
     def get_total_baseline(target_date):
         baseline_sum = 0.0
         for pid in sorted_ids:
@@ -171,7 +168,6 @@ for idx, (user, ids) in enumerate(user_cards.items()):
     total_ytd = total_value - baseline_year
     total_all = total_value - baseline_all
 
-    # Format total performance strings with emojis
     def emoji_for_change(change):
         if change > 0:
             return "📈"
@@ -187,12 +183,11 @@ for idx, (user, ids) in enumerate(user_cards.items()):
         f"{emoji_for_change(total_all)} ALL {total_all:+.2f}"
     )
 
-    # Build field lines for each card
+    # Build field lines for each card WITHOUT performance stats
     for pid in sorted_ids:
         name = card_names.get(pid, f"Card {pid}")
         price = new_data.get(pid, {}).get("price")
         old_price = old_data.get(pid, {}).get("price")
-        history = new_data.get(pid, {}).get("history", [])
 
         if price is None:
             line = f"❌ **{name}** (`{pid}`): No price found."
@@ -201,21 +196,7 @@ for idx, (user, ids) in enumerate(user_cards.items()):
         else:
             change = price - old_price
             symbol = "📈" if change > 0 else "📉" if change < 0 else "⏸️"
-
-            # Calculate per-card performance
-            wtd = calculate_performance(history, start_of_week)
-            mtd = calculate_performance(history, start_of_month)
-            ytd = calculate_performance(history, start_of_year)
-            all_time = calculate_performance(history, datetime.strptime(history[0]["date"], "%Y-%m-%d").date()) if history else None
-
-            perf_parts = []
-            if any(v is not None for v in (wtd, mtd, ytd, all_time)):
-                perf_parts.append(f"WTD {wtd:+.2f}" if wtd is not None else "WTD N/A")
-                perf_parts.append(f"MTD {mtd:+.2f}" if mtd is not None else "MTD N/A")
-                perf_parts.append(f"YTD {ytd:+.2f}" if ytd is not None else "YTD N/A")
-                perf_parts.append(f"ALL {all_time:+.2f}" if all_time is not None else "ALL N/A")
-
-            line = f"{symbol} **{name}**: ${price:.2f} ({change:+.2f}) | {' | '.join(perf_parts)}"
+            line = f"{symbol} **{name}**: ${price:.2f} ({change:+.2f})"
 
         field_lines.append(line)
 
