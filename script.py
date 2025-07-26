@@ -90,32 +90,6 @@ for user, ids in user_cards.items():
             new_data[pid] = get_price(pid)
 
 # === Generate report ===
-for user, ids in user_cards.items():
-    sorted_ids = sorted(
-        ids,
-        key=lambda pid: new_data.get(pid) if new_data.get(pid) is not None else 0,
-        reverse=True
-    )
-
-    message_lines.append(f"### :point_down: {user}'s Cards")
-    for pid in sorted_ids:
-        name = card_names.get(pid, f"Card {pid}")
-        price = new_data.get(pid)
-        old_price = old_data.get(pid)
-
-        if price is None:
-            message_lines.append(f"\> ❌ **{name}** (`{pid}`): No price found.")
-        elif old_price is None:
-            message_lines.append(f"\> 🆕 **{name}**: ${price:.2f} (new)")
-        elif price != old_price:
-            change = price - old_price
-            symbol = ":chart_with_upwards_trend:" if change > 0 else ":chart_with_downwards_trend:"
-            message_lines.append(f"\> {symbol} **{name}**: ${old_price:.2f} → ${price:.2f} ({change:+.2f})")
-        else:
-            message_lines.append(f"\> **{name}**: ${price:.2f} (no change)")
-    message_lines.append("")
-
-
 # === Save updated data ===
 with open(DATA_FILE, "w") as f:
     json.dump(new_data, f, indent=2)
@@ -124,16 +98,7 @@ with open(DATA_FILE, "w") as f:
 with open(LAST_RUN_FILE, "w") as f:
     f.write(now.isoformat())
 
-# === Add footer ===
-message_lines.append(f"`Last run: {last_run_time_str}`")
-
-embed = {
-    "title": "🧾 Pokémon Card Price Tracker Report",
-    "color": 0x00ffcc,  # Teal
-    "fields": [],
-    "footer": {"text": f"Last run: {last_run_time_str}"}
-}
-
+# === Send an individual embed per user ===
 for user, ids in user_cards.items():
     sorted_ids = sorted(ids, key=lambda pid: new_data.get(pid) or 0, reverse=True)
 
@@ -155,15 +120,18 @@ for user, ids in user_cards.items():
             line = f"⏸️ **{name}**: ${price:.2f} (no change)"
         field_lines.append(line)
 
-    embed["fields"].append({
-        "name": f"{user}'s Cards",
-        "value": "\n".join(field_lines) or "No cards found.",
-        "inline": False
-    })
+    embed = {
+        "title": f"📊 {user}'s Pokémon Price Report",
+        "color": 0x00ffcc,
+        "description": "\n".join(field_lines) or "No cards found.",
+        "footer": {"text": f"Last run: {last_run_time_str}"}
+    }
 
-# === Send Embed to Discord ===
-payload = {
-    "embeds": [embed]
-}
-response = requests.post(DISCORD_WEBHOOK_URL, json=payload)
+    payload = {
+        "content": f"📅 Report for **{user}** generated on {now.strftime('%d %B %Y at %I:%M %p')}",
+        "embeds": [embed]
+    }
 
+    response = requests.post(DISCORD_WEBHOOK_URL, json=payload)
+    if not response.ok:
+        print(f"❌ Failed to send embed for {user}: {response.status_code} - {response.text}")
