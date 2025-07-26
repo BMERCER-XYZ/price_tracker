@@ -54,9 +54,9 @@ if os.path.exists(DATA_FILE):
         for pid, value in old_data.items():
             if isinstance(value, float):  # Old format: just price
                 old_data[pid] = {
-            "price": value,
-            "history": []
-        }
+                    "price": value,
+                    "history": []
+                }
 else:
     old_data = {}
 
@@ -86,17 +86,6 @@ def update_price_history(pid, market_price):
         history.append({"date": today_str, "market": market_price})
     return history
 
-# === Calculate change from a specific period ===
-def calculate_performance(history, target_date):
-    baseline = None
-    for entry in reversed(history):
-        entry_date = datetime.strptime(entry["date"], "%Y-%m-%d").date()
-        if entry_date <= target_date:
-            baseline = entry["market"]
-            break
-    latest = history[-1]["market"] if history else None
-    return round(latest - baseline, 2) if baseline is not None and latest is not None else None
-
 # === Fetch and update ===
 for user, ids in user_cards.items():
     for pid in ids:
@@ -113,6 +102,18 @@ with open(DATA_FILE, "w") as f:
 with open(LAST_RUN_FILE, "w") as f:
     f.write(now.isoformat())
 
+# === Helper: Calculate total value from list of pids at a date ===
+def total_value_at_date(pids, target_date):
+    total = 0.0
+    for pid in pids:
+        history = new_data.get(pid, {}).get("history", [])
+        for entry in reversed(history):
+            entry_date = datetime.strptime(entry["date"], "%Y-%m-%d").date()
+            if entry_date <= target_date:
+                total += entry["market"]
+                break
+    return total
+
 # === Build Discord Embeds ===
 embeds = []
 
@@ -120,7 +121,7 @@ for idx, (user, ids) in enumerate(user_cards.items()):
     sorted_ids = sorted(ids, key=lambda pid: new_data.get(pid, {}).get("price") or 0, reverse=True)
 
     field_lines = []
-    total_value = 0.0
+    current_total = 0.0
 
     for pid in sorted_ids:
         name = card_names.get(pid, f"Card {pid}")
@@ -129,29 +130,39 @@ for idx, (user, ids) in enumerate(user_cards.items()):
 
         line = f"❌ **{name}** (`{pid}`): No price found."
         if price is not None:
-            total_value += price
-
-            # Calculate performance
-            today = now.date()
-            start_of_week = today - timedelta(days=today.weekday())
-            start_of_month = today.replace(day=1)
-            start_of_year = today.replace(month=1, day=1)
-
-            wtd = calculate_performance(history, start_of_week)
-            mtd = calculate_performance(history, start_of_month)
-            ytd = calculate_performance(history, start_of_year)
-            all_time = calculate_performance(history, datetime.strptime(history[0]["date"], "%Y-%m-%d").date()) if history else None
+            current_total += price
 
             parts = [f"${price:.2f}"]
-            if any(v is not None for v in (wtd, mtd, ytd, all_time)):
-                parts.append(f"WTD {wtd:+.2f}" if wtd is not None else "WTD N/A")
-                parts.append(f"MTD {mtd:+.2f}" if mtd is not None else "MTD N/A")
-                parts.append(f"YTD {ytd:+.2f}" if ytd is not None else "YTD N/A")
-                parts.append(f"ALL {all_time:+.2f}" if all_time is not None else "ALL N/A")
-
             line = f"📊 **{name}**: {' | '.join(parts)}"
 
         field_lines.append(line)
+
+    # === Total change metrics ===
+    today = now.date()
+    start_of_week = today - timedelta(days=today.weekday())
+    start_of_month = today.replace(day=1)
+    start_of_year = today.replace(month=1, day=1)
+
+    baseline_week = total_value_at_date(ids, start_of_week)
+    baseline_month = total_value_at_date(ids, start_of_month)
+    baseline_year = total_value_at_date(ids, start_of_year)
+    baseline_all = total_value_at_date(ids, min(
+        (datetime.strptime(entry["date"], "%Y-%m-%d").date()
+         for pid in ids
+         for entry in new_data.get(pid, {}).get("history", [])),
+        default=today
+    ))
+
+    def format_change(current, previous):
+        return f"{(current - previous):+.2f}" if previous else "N/A"
+
+    total_line = (
+        f"${current_total:.2f} | "
+        f"WTD {format_change(current_total, baseline_week)} | "
+        f"MTD {format_change(current_total, baseline_month)} | "
+        f"YTD {format_change(current_total, baseline_year)} | "
+        f"ALL {format_change(current_total, baseline_all)}"
+    )
 
     embed = {
         "title": f"{user}'s Card Summary",
@@ -159,8 +170,8 @@ for idx, (user, ids) in enumerate(user_cards.items()):
         "fields": [
             {
                 "name": "Total Value",
-                "value": f"${total_value:.2f}",
-                "inline": True
+                "value": total_line,
+                "inline": False
             },
             {
                 "name": "Card Details",
