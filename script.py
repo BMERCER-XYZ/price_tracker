@@ -51,6 +51,12 @@ with open(URLS_FILE, "r") as f:
 if os.path.exists(DATA_FILE):
     with open(DATA_FILE, "r") as f:
         old_data = json.load(f)
+        for pid, value in old_data.items():
+            if isinstance(value, float):  # Old format: just price
+                old_data[pid] = {
+            "price": value,
+            "history": []
+        }
 else:
     old_data = {}
 
