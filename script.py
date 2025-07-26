@@ -51,7 +51,8 @@ with open(URLS_FILE, "r") as f:
 if os.path.exists(DATA_FILE):
     with open(DATA_FILE, "r") as f:
         old_data = json.load(f)
-        for pid, value in old_data.items():
+        # Upgrade old format if needed
+        for pid, value in list(old_data.items()):
             if isinstance(value, float):  # Old format: just price
                 old_data[pid] = {
                     "price": value,
@@ -69,10 +70,13 @@ def get_price(product_id):
         response = requests.get(url, timeout=10)
         response.raise_for_status()
         prices = response.json()
+
+        # Prioritize Foil prices if available, else Normal
         for entry in prices:
             if entry.get("printingType") == "Foil" and entry.get("marketPrice"):
                 return entry["marketPrice"]
-            elif entry.get("printingType") == "Normal" and entry.get("marketPrice"):
+        for entry in prices:
+            if entry.get("printingType") == "Normal" and entry.get("marketPrice"):
                 return entry["marketPrice"]
         return None
     except Exception as e:
@@ -86,7 +90,20 @@ def update_price_history(pid, market_price):
         history.append({"date": today_str, "market": market_price})
     return history
 
-# === Fetch and update ===
+# === Calculate change from a specific period ===
+def calculate_performance(history, target_date):
+    baseline = None
+    for entry in reversed(history):
+        entry_date = datetime.strptime(entry["date"], "%Y-%m-%d").date()
+        if entry_date <= target_date:
+            baseline = entry["market"]
+            break
+    latest = history[-1]["market"] if history else None
+    if baseline is None or latest is None:
+        return None
+    return round(latest - baseline, 2)
+
+# === Fetch current prices and update new_data with history ===
 for user, ids in user_cards.items():
     for pid in ids:
         price = get_price(pid)
@@ -102,18 +119,6 @@ with open(DATA_FILE, "w") as f:
 with open(LAST_RUN_FILE, "w") as f:
     f.write(now.isoformat())
 
-# === Helper: Calculate total value from list of pids at a date ===
-def total_value_at_date(pids, target_date):
-    total = 0.0
-    for pid in pids:
-        history = new_data.get(pid, {}).get("history", [])
-        for entry in reversed(history):
-            entry_date = datetime.strptime(entry["date"], "%Y-%m-%d").date()
-            if entry_date <= target_date:
-                total += entry["market"]
-                break
-    return total
-
 # === Build Discord Embeds ===
 embeds = []
 
@@ -121,14 +126,73 @@ for idx, (user, ids) in enumerate(user_cards.items()):
     sorted_ids = sorted(ids, key=lambda pid: new_data.get(pid, {}).get("price") or 0, reverse=True)
 
     field_lines = []
-    current_total = 0.0
+    total_value = 0.0
+    old_total_value = 0.0
 
+    # Calculate total old and new value for performance metrics
+    for pid in sorted_ids:
+        price = new_data.get(pid, {}).get("price")
+        old_price = old_data.get(pid, {}).get("price")
+        if price is not None:
+            total_value += price
+        if old_price is not None:
+            old_total_value += old_price
+
+    # Calculate total performance for WTD, MTD, YTD, ALL
+    today = now.date()
+    start_of_week = today - timedelta(days=today.weekday())
+    start_of_month = today.replace(day=1)
+    start_of_year = today.replace(month=1, day=1)
+
+    # To get baseline for totals, we combine history of all cards by date, so:
+    # We'll approximate by summing baseline prices on those dates from old_data histories.
+
+    def get_total_baseline(target_date):
+        baseline_sum = 0.0
+        for pid in sorted_ids:
+            history = new_data.get(pid, {}).get("history", [])
+            baseline = None
+            for entry in reversed(history):
+                entry_date = datetime.strptime(entry["date"], "%Y-%m-%d").date()
+                if entry_date <= target_date:
+                    baseline = entry["market"]
+                    break
+            if baseline is not None:
+                baseline_sum += baseline
+        return baseline_sum
+
+    baseline_week = get_total_baseline(start_of_week)
+    baseline_month = get_total_baseline(start_of_month)
+    baseline_year = get_total_baseline(start_of_year)
+    baseline_all = get_total_baseline(datetime.strptime(min((entry["date"] for pid in sorted_ids for entry in new_data.get(pid, {}).get("history", [{"date": today_str}]))), "%Y-%m-%d").date())
+
+    total_wtd = total_value - baseline_week
+    total_mtd = total_value - baseline_month
+    total_ytd = total_value - baseline_year
+    total_all = total_value - baseline_all
+
+    # Format total performance strings with emojis
+    def emoji_for_change(change):
+        if change > 0:
+            return "📈"
+        elif change < 0:
+            return "📉"
+        else:
+            return "⏸️"
+
+    total_perf_str = (
+        f"{emoji_for_change(total_wtd)} WTD {total_wtd:+.2f} | "
+        f"{emoji_for_change(total_mtd)} MTD {total_mtd:+.2f} | "
+        f"{emoji_for_change(total_ytd)} YTD {total_ytd:+.2f} | "
+        f"{emoji_for_change(total_all)} ALL {total_all:+.2f}"
+    )
+
+    # Build field lines for each card
     for pid in sorted_ids:
         name = card_names.get(pid, f"Card {pid}")
         price = new_data.get(pid, {}).get("price")
-        history = new_data.get(pid, {}).get("history", [])
-
         old_price = old_data.get(pid, {}).get("price")
+        history = new_data.get(pid, {}).get("history", [])
 
         if price is None:
             line = f"❌ **{name}** (`{pid}`): No price found."
@@ -138,12 +202,7 @@ for idx, (user, ids) in enumerate(user_cards.items()):
             change = price - old_price
             symbol = "📈" if change > 0 else "📉" if change < 0 else "⏸️"
 
-            # Build performance parts for WTD/MTD/YTD/ALL per card
-            today = now.date()
-            start_of_week = today - timedelta(days=today.weekday())
-            start_of_month = today.replace(day=1)
-            start_of_year = today.replace(month=1, day=1)
-
+            # Calculate per-card performance
             wtd = calculate_performance(history, start_of_week)
             mtd = calculate_performance(history, start_of_month)
             ytd = calculate_performance(history, start_of_year)
@@ -158,41 +217,15 @@ for idx, (user, ids) in enumerate(user_cards.items()):
 
             line = f"{symbol} **{name}**: ${price:.2f} ({change:+.2f}) | {' | '.join(perf_parts)}"
 
-
-    # === Total change metrics ===
-    today = now.date()
-    start_of_week = today - timedelta(days=today.weekday())
-    start_of_month = today.replace(day=1)
-    start_of_year = today.replace(month=1, day=1)
-
-    baseline_week = total_value_at_date(ids, start_of_week)
-    baseline_month = total_value_at_date(ids, start_of_month)
-    baseline_year = total_value_at_date(ids, start_of_year)
-    baseline_all = total_value_at_date(ids, min(
-        (datetime.strptime(entry["date"], "%Y-%m-%d").date()
-         for pid in ids
-         for entry in new_data.get(pid, {}).get("history", [])),
-        default=today
-    ))
-
-    def format_change(current, previous):
-        return f"{(current - previous):+.2f}" if previous else "N/A"
-
-    total_line = (
-        f"${current_total:.2f} | "
-        f"WTD {format_change(current_total, baseline_week)} | "
-        f"MTD {format_change(current_total, baseline_month)} | "
-        f"YTD {format_change(current_total, baseline_year)} | "
-        f"ALL {format_change(current_total, baseline_all)}"
-    )
+        field_lines.append(line)
 
     embed = {
         "title": f"{user}'s Card Summary",
         "color": 0x00ffcc,
         "fields": [
             {
-                "name": "Total Value",
-                "value": total_line,
+                "name": "Total Value & Performance",
+                "value": f"${total_value:.2f} | {total_perf_str}",
                 "inline": False
             },
             {
@@ -215,3 +248,6 @@ payload = {
 }
 
 response = requests.post(DISCORD_WEBHOOK_URL, json=payload)
+
+if response.status_code != 204:
+    print(f"❌ Failed to send Discord webhook: {response.status_code} {response.text}")
