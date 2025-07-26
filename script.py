@@ -128,14 +128,36 @@ for idx, (user, ids) in enumerate(user_cards.items()):
         price = new_data.get(pid, {}).get("price")
         history = new_data.get(pid, {}).get("history", [])
 
-        line = f"❌ **{name}** (`{pid}`): No price found."
-        if price is not None:
-            current_total += price
+        old_price = old_data.get(pid, {}).get("price")
 
-            parts = [f"${price:.2f}"]
-            line = f"📊 **{name}**: {' | '.join(parts)}"
+        if price is None:
+            line = f"❌ **{name}** (`{pid}`): No price found."
+        elif old_price is None:
+            line = f"🆕 **{name}**: ${price:.2f} (new)"
+        else:
+            change = price - old_price
+            symbol = "📈" if change > 0 else "📉" if change < 0 else "⏸️"
 
-        field_lines.append(line)
+            # Build performance parts for WTD/MTD/YTD/ALL per card
+            today = now.date()
+            start_of_week = today - timedelta(days=today.weekday())
+            start_of_month = today.replace(day=1)
+            start_of_year = today.replace(month=1, day=1)
+
+            wtd = calculate_performance(history, start_of_week)
+            mtd = calculate_performance(history, start_of_month)
+            ytd = calculate_performance(history, start_of_year)
+            all_time = calculate_performance(history, datetime.strptime(history[0]["date"], "%Y-%m-%d").date()) if history else None
+
+            perf_parts = []
+            if any(v is not None for v in (wtd, mtd, ytd, all_time)):
+                perf_parts.append(f"WTD {wtd:+.2f}" if wtd is not None else "WTD N/A")
+                perf_parts.append(f"MTD {mtd:+.2f}" if mtd is not None else "MTD N/A")
+                perf_parts.append(f"YTD {ytd:+.2f}" if ytd is not None else "YTD N/A")
+                perf_parts.append(f"ALL {all_time:+.2f}" if all_time is not None else "ALL N/A")
+
+            line = f"{symbol} **{name}**: ${price:.2f} ({change:+.2f}) | {' | '.join(perf_parts)}"
+
 
     # === Total change metrics ===
     today = now.date()
