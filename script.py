@@ -51,9 +51,8 @@ with open(URLS_FILE, "r") as f:
 if os.path.exists(DATA_FILE):
     with open(DATA_FILE, "r") as f:
         old_data = json.load(f)
-        # Upgrade old format if needed
         for pid, value in list(old_data.items()):
-            if isinstance(value, float):  # Old format: just price
+            if isinstance(value, float):
                 old_data[pid] = {
                     "price": value,
                     "history": []
@@ -71,7 +70,6 @@ def get_price(product_id):
         response.raise_for_status()
         prices = response.json()
 
-        # Prioritize Foil prices if available, else Normal
         for entry in prices:
             if entry.get("printingType") == "Foil" and entry.get("marketPrice"):
                 return entry["marketPrice"]
@@ -89,19 +87,6 @@ def update_price_history(pid, market_price):
     if not any(entry["date"] == today_str for entry in history):
         history.append({"date": today_str, "market": market_price})
     return history
-
-# === Calculate change from a specific period ===
-def calculate_performance(history, target_date):
-    baseline = None
-    for entry in reversed(history):
-        entry_date = datetime.strptime(entry["date"], "%Y-%m-%d").date()
-        if entry_date <= target_date:
-            baseline = entry["market"]
-            break
-    latest = history[-1]["market"] if history else None
-    if baseline is None or latest is None:
-        return None
-    return round(latest - baseline, 2)
 
 # === Fetch current prices and update new_data with history ===
 for user, ids in user_cards.items():
@@ -127,18 +112,12 @@ for idx, (user, ids) in enumerate(user_cards.items()):
 
     field_lines = []
     total_value = 0.0
-    old_total_value = 0.0
 
-    # Calculate total old and new value for performance metrics
     for pid in sorted_ids:
         price = new_data.get(pid, {}).get("price")
-        old_price = old_data.get(pid, {}).get("price")
         if price is not None:
             total_value += price
-        if old_price is not None:
-            old_total_value += old_price
 
-    # Calculate total performance for WTD, MTD, YTD, ALL
     today = now.date()
     start_of_week = today - timedelta(days=today.weekday())
     start_of_month = today.replace(day=1)
@@ -149,7 +128,7 @@ for idx, (user, ids) in enumerate(user_cards.items()):
         for pid in sorted_ids:
             history = new_data.get(pid, {}).get("history", [])
             baseline = None
-            for entry in reversed(history):
+            for entry in sorted(history, key=lambda x: x["date"]):
                 entry_date = datetime.strptime(entry["date"], "%Y-%m-%d").date()
                 if entry_date <= target_date:
                     baseline = entry["market"]
@@ -158,10 +137,19 @@ for idx, (user, ids) in enumerate(user_cards.items()):
                 baseline_sum += baseline
         return baseline_sum
 
+    def get_all_time_baseline():
+        baseline_sum = 0.0
+        for pid in sorted_ids:
+            history = new_data.get(pid, {}).get("history", [])
+            if history:
+                earliest = min(history, key=lambda x: x["date"])
+                baseline_sum += earliest["market"]
+        return baseline_sum
+
     baseline_week = get_total_baseline(start_of_week)
     baseline_month = get_total_baseline(start_of_month)
     baseline_year = get_total_baseline(start_of_year)
-    baseline_all = get_total_baseline(datetime.strptime(min((entry["date"] for pid in sorted_ids for entry in new_data.get(pid, {}).get("history", [{"date": today_str}]))), "%Y-%m-%d").date())
+    baseline_all = get_all_time_baseline()
 
     total_wtd = total_value - baseline_week
     total_mtd = total_value - baseline_month
@@ -169,12 +157,7 @@ for idx, (user, ids) in enumerate(user_cards.items()):
     total_all = total_value - baseline_all
 
     def emoji_for_change(change):
-        if change > 0:
-            return "📈"
-        elif change < 0:
-            return "📉"
-        else:
-            return "⏸️"
+        return "📈" if change > 0 else "📉" if change < 0 else "⏸️"
 
     total_perf_str = (
         f"{emoji_for_change(total_wtd)} WTD {total_wtd:+.2f} | "
@@ -183,7 +166,6 @@ for idx, (user, ids) in enumerate(user_cards.items()):
         f"{emoji_for_change(total_all)} ALL {total_all:+.2f}"
     )
 
-    # Build field lines for each card WITHOUT performance stats
     for pid in sorted_ids:
         name = card_names.get(pid, f"Card {pid}")
         price = new_data.get(pid, {}).get("price")
@@ -192,12 +174,11 @@ for idx, (user, ids) in enumerate(user_cards.items()):
         if price is None:
             line = f"❌ **{name}** (`{pid}`): No price found."
         elif old_price is None:
-            line = f"🆕 **{name}**: ${price:.2f} (new)"
+            line = f"\U0001f195 **{name}**: ${price:.2f} (new)"
         else:
             change = price - old_price
-            symbol = "📈" if change > 0 else "📉" if change < 0 else "⏸️"
+            symbol = emoji_for_change(change)
             line = f"{symbol} **{name}**: ${price:.2f} ({change:+.2f})"
-
         field_lines.append(line)
 
     embed = {
@@ -224,7 +205,7 @@ for idx, (user, ids) in enumerate(user_cards.items()):
 
 # === Send to Discord ===
 payload = {
-    "content": "🧾 **Pokémon Card Price Tracker Report**",
+    "content": "📟 **Pokémon Card Price Tracker Report**",
     "embeds": embeds
 }
 
