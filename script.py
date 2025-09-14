@@ -159,12 +159,7 @@ for idx, (user, ids) in enumerate(user_cards.items()):
     def emoji_for_change(change):
         return "📈" if change > 0 else "📉" if change < 0 else "⏸️"
 
-    total_perf_str = (
-        f"{emoji_for_change(total_wtd)} WTD {total_wtd:+.2f} | "
-        f"{emoji_for_change(total_mtd)} MTD {total_mtd:+.2f} | "
-        f"{emoji_for_change(total_ytd)} YTD {total_ytd:+.2f} | "
-        f"{emoji_for_change(total_all)} ALL {total_all:+.2f}"
-    )
+    # Removed total_perf_str and performance metrics from output
 
     for pid in sorted_ids:
         name = card_names.get(pid, f"Card {pid}")
@@ -187,7 +182,7 @@ for idx, (user, ids) in enumerate(user_cards.items()):
         "fields": [
             {
                 "name": "Total Value & Performance",
-                "value": f"${total_value:.2f} | {total_perf_str}",
+                "value": f"${total_value:.2f} | [Performance metrics](https://poketracker.xyz/)",
                 "inline": False
             },
             {
